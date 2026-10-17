@@ -337,3 +337,27 @@ pnpm run lint           # Run ESLint
 pnpm run format:check   # Check Prettier formatting
 pnpm run typecheck      # Run TypeScript checkJs validation
 ```
+
+### Comments and visual replies saved in the HTML (development fork)
+
+Every sent annotation is written into the artifact's actual HTML, in a **Review comments** section. A **Review comment** link beside the source passage opens its thread; the thread quotes the selected passage and links back. Questions remain visible with an Awaiting answer label until individually answered. They remain in the file when opened locally, exported, shared, or viewed without the Lavish server.
+
+Poll output includes each question's `prompt_id`. Answer one comment at a time:
+
+```sh
+lavish-axi reply report.html --reply-to <prompt_id> --agent-reply "The answer to this question."
+```
+
+An answer may also be a self-contained HTML div, SVG diagram, or interactive widget:
+
+```sh
+lavish-axi reply report.html --reply-to <prompt_id> --agent-reply-html-file widget.html --agent-reply "Move the slider to compare the cases."
+```
+
+The HTML fragment is embedded in the document's comment thread in a sandboxed iframe. Inline scripts and styles work; access to the parent document, external resources, forms, and popups is restricted. Keep widget assets inline. The frame can be resized vertically. A text summary is optional. Agent HTML is never executed in the Conversation chrome. A targeted answer marks only that comment Done; other questions remain open. Plain `poll --reply-to <prompt_id> --agent-reply "..."` is also supported. Legacy unthreaded replies retain their existing batch behavior.
+
+The embedded review section stores its own data, so later replies preserve earlier questions and visuals. Source edits outside that section retain their original bytes. Agents should preserve the Review comments section when editing; a subsequent targeted reply restores the stored conversation if an agent has overwritten it. Do not manually delete the section when it should remain with the document.
+
+An additional append-only local `conversations/<session-key>.jsonl` archive under `LAVISH_AXI_STATE_DIR` (default `~/.lavish-axi`) survives restarts and trimming of the bounded live transcript. Use **More → Download conversation history** for a JSON backup. No automatic archive expiry is applied. Unsent drafts retain the upstream browser draft protections; they enter the HTML when sent, not while they are being typed. Previously lost annotations cannot be reconstructed by this feature.
+
+To try this fork without replacing the installed CLI, run `pnpm dev docs/examples/persistent-review.html`. This uses a separate `.lavish-dev` state directory, loopback-only port 4388, and disables telemetry by default. The example is synthetic and contains a working visual answer. The installed CLI and its sessions remain separate.

@@ -98,12 +98,12 @@ export const POLL_WAKE_PATH_RULES = Object.freeze([
 export const POLL_SEND_AND_END_RULE =
   "`Send & End` ends the session. Its final feedback is still delivered once. After that response, polling stops, and the agent must not reopen the session uninvited.";
 export const POLL_AGENT_REPLY_RULE =
-  "Keep the reply concise. Only when a longer reply is genuinely necessary, use Markdown structure - blank-line paragraphs, `- ` / `1. ` lists, `## ` headings - so it renders scannably instead of a wall of text, and pass that body with `--agent-reply-file <path>` (`-` reads stdin) so newlines survive quoting.";
+  'Answer each comment separately with `lavish-axi reply <html-file> --reply-to <prompt_id> --agent-reply "<answer>"`; poll output includes each comment id. This saves the question and answer inside the actual HTML document. A visual or interactive answer uses `reply --reply-to <prompt_id> --agent-reply-html-file <widget.html>`, optionally with a text summary. Preserve the document’s Review comments section when editing. Keep the reply concise. Only when a longer reply is genuinely necessary, use Markdown structure - blank-line paragraphs, `- ` / `1. ` lists, `## ` headings - so it renders scannably instead of a wall of text, and pass that body with `--agent-reply-file <path>` (`-` reads stdin) so newlines survive quoting.';
 const POLL_AGENT_REPLY_HELP_POINTER =
   "The Conversation panel's Markdown subset is in README's Feedback controls bullet.";
 const POLL_AGENT_REPLY_NEXT_POINTER =
   "The Conversation panel's Markdown subset is in `lavish-axi poll --help` and README.";
-const POLL_VALUE_FLAGS = ["--agent-reply", "--agent-reply-file", "--timeout-ms", "--owner"];
+const POLL_VALUE_FLAGS = ["--agent-reply", "--agent-reply-file", "--timeout-ms", "--owner", "--reply-to"];
 const AGENT_REPLY_JSON_LIMIT_BYTES = 2 * 1024 * 1024;
 const AGENT_REPLY_JSON_ENVELOPE_BYTES = Buffer.byteLength(JSON.stringify({ agent_reply: "" }));
 const AGENT_REPLY_INPUT_LIMIT_BYTES = AGENT_REPLY_JSON_LIMIT_BYTES - AGENT_REPLY_JSON_ENVELOPE_BYTES;
@@ -439,6 +439,8 @@ async function pollCommand(args) {
   }
   const takeover = args.includes("--takeover");
   const agentReply = await resolveAgentReply(args);
+  const replyTo = resolveReplyTo(args);
+  if (replyTo && !agentReply) throw new AxiError("--reply-to requires an agent reply", "VALIDATION_ERROR");
   const absolute = await canonicalFile(file);
   const baseUrl = await ensureServer();
   const timeoutMs = flagValue(args, "--timeout-ms");
@@ -475,7 +477,9 @@ async function pollCommand(args) {
         ? {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify(agentReply ? { agent_reply: agentReply } : {}),
+            body: JSON.stringify(
+              agentReply ? { agent_reply: agentReply, ...(replyTo ? { reply_to: replyTo } : {}) } : {},
+            ),
           }
         : {};
     const response = await fetchJson(`${baseUrl}/api/poll?${query}`, {
@@ -502,7 +506,16 @@ async function pollCommand(args) {
   }
 }
 
-const REPLY_VALUE_FLAGS = ["--agent-reply", "--agent-reply-file"];
+function resolveReplyTo(args) {
+  const flag = inspectValueFlag(args, "--reply-to");
+  if (!flag.present) return "";
+  const id = String(flag.value || "");
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(id))
+    throw new AxiError("--reply-to requires a valid comment id", "VALIDATION_ERROR");
+  return id;
+}
+
+const REPLY_VALUE_FLAGS = ["--agent-reply", "--agent-reply-file", "--reply-to", "--agent-reply-html-file"];
 const REPLY_TOO_LARGE_HELP = "Shorten the reply, then retry `lavish-axi reply <html-file>`";
 
 async function replyCommand(args) {
@@ -514,13 +527,24 @@ async function replyCommand(args) {
   }
   const inline = inspectValueFlag(args, "--agent-reply");
   const fromFile = inspectValueFlag(args, "--agent-reply-file");
-  if (!inline.present && !fromFile.present) {
+  const visualFile = inspectValueFlag(args, "--agent-reply-html-file");
+  if (!inline.present && !fromFile.present && !visualFile.present) {
     throw new AxiError("An agent reply is required", "VALIDATION_ERROR", [
       'Pass exactly one of --agent-reply "<message>" or --agent-reply-file <path> (`-` reads stdin)',
       "Use `lavish-axi poll <html-file> --agent-reply` when the reply should be followed by a wait for feedback",
     ]);
   }
-  const text = await resolveAgentReply(args, { tooLargeHelp: REPLY_TOO_LARGE_HELP });
+  let visualHtml = "";
+  if (visualFile.present) {
+    if (!visualFile.value || String(visualFile.value).startsWith("--"))
+      throw new AxiError("--agent-reply-html-file requires a path", "VALIDATION_ERROR");
+    if (!resolveReplyTo(args)) throw new AxiError("A visual answer requires --reply-to", "VALIDATION_ERROR");
+    visualHtml = await readFile(String(visualFile.value), "utf8");
+    if (!visualHtml.trim() || Buffer.byteLength(visualHtml) > 1_000_000)
+      throw new AxiError("Visual answer must be non-empty HTML under 1 MB", "VALIDATION_ERROR");
+  }
+  const text =
+    (await resolveAgentReply(args, { tooLargeHelp: REPLY_TOO_LARGE_HELP })) || (visualHtml ? "Visual answer" : "");
   if (!String(text || "").trim()) {
     throw new AxiError("Agent reply text was empty", "VALIDATION_ERROR", [
       'Pass --agent-reply "<message>" or --agent-reply-file <path> with a non-empty body',
@@ -529,14 +553,19 @@ async function replyCommand(args) {
   await assertHtmlFile(file);
   const absolute = await canonicalFile(file);
   const baseUrl = await ensureServer();
-  await postAgentReply(`${baseUrl}/api/${sessionKey(absolute)}/agent-reply`, text, absolute);
-  return createReplyOutput(absolute);
+  await postAgentReply(`${baseUrl}/api/${sessionKey(absolute)}/agent-reply`, text, absolute, {
+    replyTo: resolveReplyTo(args),
+    visualHtml,
+  });
+  return createReplyOutput(absolute, resolveReplyTo(args));
 }
 
-function createReplyOutput(file) {
+function createReplyOutput(file, replyTo = "") {
   return {
-    reply: { file, status: "sent" },
-    next_step: `Lavish Editor accepted the reply for ${file} and is no longer showing Working. Run \`lavish-axi poll ${file}\` when you are ready to wait for more feedback.`,
+    reply: { file, status: "sent", ...(replyTo ? { reply_to: replyTo } : {}) },
+    next_step: replyTo
+      ? `Lavish Editor saved the answer for comment ${replyTo} inside ${file}. Answer the remaining comments individually, then poll when ready.`
+      : `Lavish Editor accepted the reply for ${file} and is no longer showing Working. Run \`lavish-axi poll ${file}\` when you are ready to wait for more feedback.`,
   };
 }
 
@@ -2359,16 +2388,25 @@ const AGENT_REPLY_RECEIPT_TIMEOUT_MS = 10_000;
  * @param {string} url
  * @param {string} text
  * @param {string} file
- * @param {{ timeoutMs?: number }} [options]
+ * @param {{ timeoutMs?: number, replyTo?: string, visualHtml?: string }} [options]
  */
-export async function postAgentReply(url, text, file, { timeoutMs = AGENT_REPLY_RECEIPT_TIMEOUT_MS } = {}) {
+export async function postAgentReply(
+  url,
+  text,
+  file,
+  { timeoutMs = AGENT_REPLY_RECEIPT_TIMEOUT_MS, replyTo = "", visualHtml = "" } = {},
+) {
   const signal = AbortSignal.timeout(timeoutMs);
   let response;
   try {
     response = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({
+        text,
+        ...(replyTo ? { reply_to: replyTo } : {}),
+        ...(visualHtml ? { visual_html: visualHtml } : {}),
+      }),
       signal,
     });
   } catch {

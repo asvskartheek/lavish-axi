@@ -1,0 +1,189 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Comments live in the document</title>
+    <style>
+      body {
+        font: 18px/1.6 system-ui;
+        background: #f5f3ed;
+        color: #20251f;
+        max-width: 1050px;
+        margin: 40px auto;
+        padding: 20px;
+      }
+      h1 {
+        font-size: 40px;
+        line-height: 1.2;
+      }
+      section#experiment {
+        padding: 20px 32px;
+        background: white;
+        border: 1px solid #d6dbd1;
+        border-radius: 12px;
+      }
+      h2 {
+        margin-top: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Comments live in the document.</h1>
+    <p>This standalone HTML has no Lavish server, SDK, or chat panel.</p>
+    <section id="experiment">
+      <h2>Drawing reader experiment</h2>
+      <p id="cost">Cost fell about 10%. Accuracy did not improve.</p>
+      <a
+        data-lavish-comment-ref="visual-q"
+        href="#lavish-comment-visual-q"
+        title="Can you show how fewer calls reduce cost?"
+        >Review comment</a
+      >
+    </section>
+    <section id="lavish-review-comments" aria-label="Review comments">
+      <style>
+        a[data-lavish-comment-ref] {
+          display: inline-block;
+          font: 12px system-ui;
+          color: #624d1d;
+          background: #fff4ce;
+          border: 1px solid #cfb36b;
+          border-radius: 6px;
+          padding: 4px 8px;
+          margin: 4px;
+          text-decoration: none;
+        }
+        #lavish-review-comments {
+          font: 16px/1.55 system-ui;
+          color: #20251f;
+          background: #faf8f3;
+          padding: clamp(20px, 4vw, 48px);
+          margin: 40px auto;
+          max-width: 1000px;
+          box-sizing: border-box;
+          text-align: left;
+        }
+        #lavish-review-comments * {
+          box-sizing: border-box;
+          min-width: 0;
+        }
+        #lavish-review-comments .lavish-review-thread {
+          border: 1px solid #cbd4ca;
+          border-radius: 12px;
+          background: white;
+          padding: 24px;
+          margin: 20px 0;
+          overflow-wrap: anywhere;
+        }
+        #lavish-review-comments header {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        #lavish-review-comments a {
+          color: #376346;
+        }
+        #lavish-review-comments blockquote {
+          border-left: 3px solid #b99a42;
+          margin: 16px 0;
+          padding: 8px 16px;
+          color: #525b52;
+          white-space: pre-wrap;
+        }
+        #lavish-review-comments .lavish-review-question {
+          white-space: pre-wrap;
+          font-weight: 600;
+        }
+        #lavish-review-comments .lavish-review-answer {
+          border-top: 1px solid #dce2da;
+          padding-top: 18px;
+          margin-top: 18px;
+        }
+        #lavish-review-comments .lavish-review-waiting {
+          color: #697368;
+        }
+        #lavish-review-comments .lavish-review-visual {
+          height: 420px;
+          min-height: 180px;
+          resize: vertical;
+          overflow: hidden;
+          border: 1px solid #cbd4ca;
+          border-radius: 8px;
+        }
+        #lavish-review-comments iframe {
+          display: block;
+          width: 100%;
+          height: 100%;
+          border: 0;
+        }
+        #lavish-review-comments pre {
+          overflow: auto;
+        }
+        #lavish-review-comments :target {
+          outline: 2px solid #b99a42;
+          outline-offset: 3px;
+        }
+      </style>
+      <h2>Review comments</h2>
+      <article class="lavish-review-thread" id="lavish-comment-visual-q">
+        <header><strong>Your comment</strong><a href="#cost">View source passage</a></header>
+        <blockquote>Cost fell about 10%. Accuracy did not improve.</blockquote>
+        <p class="lavish-review-question">Can you show how fewer calls reduce cost?</p>
+        <section class="lavish-review-answer">
+          <strong>Answer</strong>
+          <p>Move the slider. This visual belongs to your exact question and stays inside this HTML file.</p>
+          <div class="lavish-review-visual">
+            <iframe
+              sandbox="allow-scripts"
+              referrerpolicy="no-referrer"
+              title="Visual answer: Can you show how fewer calls reduce cost?"
+              srcdoc='&lt;!doctype html&gt;&lt;html&gt;&lt;head&gt;&lt;meta charset="utf-8"&gt;&lt;meta http-equiv="Content-Security-Policy" content="default-src &apos;none&apos;; script-src &apos;unsafe-inline&apos;; style-src &apos;unsafe-inline&apos;; img-src data: blob:; font-src data:; connect-src &apos;none&apos;; form-action &apos;none&apos;; base-uri &apos;none&apos;"&gt;&lt;style&gt;body{font:16px system-ui;margin:20px;color:#20251f}*{box-sizing:border-box}img,svg{max-width:100%}&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;style&gt;body{background:#f8faf6;color:#213b2b}h3{margin-top:0}.metric{font-size:36px;font-weight:650;color:#376346}input{width:100%;accent-color:#376346}.track{height:35px;background:#e1e7dd;border-radius:6px;overflow:hidden}.bar{height:100%;background:#7f9d6c;transition:width .15s}label{display:block;margin:18px 0}small{color:#596756}&lt;/style&gt;&lt;h3&gt;Calls → cost&lt;/h3&gt;&lt;p&gt;Same price per call. Fewer calls cost less.&lt;/p&gt;&lt;label&gt;Model calls: &lt;output id="calls"&gt;9&lt;/output&gt;&lt;input aria-label="Model calls" type="range" min="1" max="10" value="9" oninput="document.getElementById(&apos;calls&apos;).textContent=this.value;document.getElementById(&apos;cost&apos;).textContent=&apos;$&apos;+(this.value*.01).toFixed(2);document.getElementById(&apos;bar&apos;).style.width=(this.value*10)+&apos;%&apos;"&gt;&lt;/label&gt;&lt;div class="metric" id="cost"&gt;$0.09&lt;/div&gt;&lt;div class="track"&gt;&lt;div class="bar" id="bar" style="width:90%"&gt;&lt;/div&gt;&lt;/div&gt;&lt;p&gt;&lt;small&gt;Illustrative calculation. It does not prove an accuracy improvement.&lt;/small&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;'
+            ></iframe>
+          </div>
+        </section>
+      </article>
+      <script type="application/json" id="lavish-review-data">
+        [
+          {
+            "role": "user",
+            "kind": "annotation",
+            "text": "Can you show how fewer calls reduce cost?",
+            "at": "2026-10-17T21:20:17.539Z",
+            "prompt_id": "visual-q",
+            "anchor": {
+              "kind": "element",
+              "label": "\u003ctext>",
+              "excerpt": "Cost fell about 10%. Accuracy did not improve.",
+              "selector": "p#cost"
+            },
+            "source_text": "Cost fell about 10%. Accuracy did not improve.",
+            "source_selector": "p#cost",
+            "delivered_at": "2026-10-17T21:20:17.544Z",
+            "delivered_seq": 1,
+            "done_at": "2026-10-17T21:20:17.544Z",
+            "source_id": "cost"
+          },
+          {
+            "role": "agent",
+            "text": "Move the slider. This visual belongs to your exact question and stays inside this HTML file.",
+            "at": "2026-10-17T21:20:17.544Z",
+            "visual_html": "\u003cstyle>body{background:#f8faf6;color:#213b2b}h3{margin-top:0}.metric{font-size:36px;font-weight:650;color:#376346}input{width:100%;accent-color:#376346}.track{height:35px;background:#e1e7dd;border-radius:6px;overflow:hidden}.bar{height:100%;background:#7f9d6c;transition:width .15s}label{display:block;margin:18px 0}small{color:#596756}\u003c/style>\u003ch3>Calls → cost\u003c/h3>\u003cp>Same price per call. Fewer calls cost less.\u003c/p>\u003clabel>Model calls: \u003coutput id=\"calls\">9\u003c/output>\u003cinput aria-label=\"Model calls\" type=\"range\" min=\"1\" max=\"10\" value=\"9\" oninput=\"document.getElementById('calls').textContent=this.value;document.getElementById('cost').textContent='$'+(this.value*.01).toFixed(2);document.getElementById('bar').style.width=(this.value*10)+'%'\">\u003c/label>\u003cdiv class=\"metric\" id=\"cost\">$0.09\u003c/div>\u003cdiv class=\"track\">\u003cdiv class=\"bar\" id=\"bar\" style=\"width:90%\">\u003c/div>\u003c/div>\u003cp>\u003csmall>Illustrative calculation. It does not prove an accuracy improvement.\u003c/small>\u003c/p>",
+            "message_id": "1290924b-84a8-41ac-b8a1-5ae4fce695c6",
+            "reply_to": "visual-q",
+            "question": {
+              "prompt_id": "visual-q",
+              "text": "Can you show how fewer calls reduce cost?",
+              "anchor": {
+                "kind": "element",
+                "label": "\u003ctext>",
+                "excerpt": "Cost fell about 10%. Accuracy did not improve.",
+                "selector": "p#cost"
+              }
+            }
+          }
+        ]
+      </script>
+    </section>
+  </body>
+</html>

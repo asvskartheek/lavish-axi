@@ -441,3 +441,57 @@ test("reply fails with a timeout when the server stalls before headers or mid-bo
     await new Promise((resolve) => stalling.close(() => resolve()));
   }
 });
+
+test("reply --reply-to attaches an answer and conversation download preserves both comments", async () => {
+  await withArtifact(async ({ base, key, artifact, env, stateFile }) => {
+    const sent = await fetch(`${base}/api/${key}/prompts`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: base },
+      body: JSON.stringify({
+        prompts: [
+          { prompt_id: "first-note", prompt: "Why?", text: "Selected claim", tag: "text", selector: "p" },
+          { prompt_id: "second-note", prompt: "How?", tag: "message" },
+        ],
+      }),
+    });
+    assert.equal(sent.status, 200);
+    await fetch(`${base}/api/poll?file=${encodeURIComponent(artifact)}&timeoutMs=0`);
+    const replied = await runCli(["reply", artifact, "--reply-to", "first-note", "--agent-reply", "Fewer calls."], {
+      env,
+    });
+    assert.equal(replied.status, 0, replied.stderr);
+    const state = JSON.parse(await readFile(stateFile, "utf8"));
+    assert.ok(state.sessions[key].chat[0].done_at);
+    assert.equal(state.sessions[key].chat[1].done_at, undefined);
+    const response = await fetch(`${base}/api/${key}/conversation`);
+    assert.equal(response.status, 200);
+    const history = await response.json();
+    assert.equal(history.chat.length, 3);
+    assert.equal(history.chat[2].reply_to, "first-note");
+    assert.equal(history.chat[2].question.text, "Why?");
+  });
+});
+
+test("a visual reply persists an interactive HTML widget in the actual source document", async () => {
+  await withArtifact(async ({ base, key, artifact, env, dir }) => {
+    await fetch(`${base}/api/${key}/prompts`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: base },
+      body: JSON.stringify({ prompts: [{ prompt_id: "visual-note", prompt: "Show me visually", tag: "message" }] }),
+    });
+    const widget = path.join(dir, "widget.html");
+    await writeFile(
+      widget,
+      '<label>Calls <input type="range"></label><script>document.body.dataset.ready="yes"</script>',
+    );
+    const result = await runCli(["reply", artifact, "--reply-to", "visual-note", "--agent-reply-html-file", widget], {
+      env,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const source = await readFile(artifact, "utf8");
+    assert.match(source, /Show me visually/);
+    assert.match(source, /sandbox="allow-scripts"/);
+    assert.match(source, /Calls/);
+    assert.match(source, /type="range"|type=&quot;range&quot;/);
+  });
+});

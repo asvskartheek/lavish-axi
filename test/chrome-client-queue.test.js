@@ -8983,3 +8983,30 @@ test("whiteboard init flags libraries that changed between the libraries and sou
   assert.equal(failed.librariesUnavailable, true);
   assert.equal(JSON.stringify(failed.libraries), "[]");
 });
+
+test("a targeted answer visibly quotes its question and links to that exact comment", async () => {
+  const chrome = await createChromeHarness({
+    sessionData: {
+      ...defaultSessionData,
+      initialChat: [
+        { role: "user", prompt_id: "question-a", text: "Why <script>?" },
+        {
+          role: "agent",
+          reply_to: "question-a",
+          text: "Fewer calls",
+          html: "<p>Fewer calls</p>",
+          question: {
+            text: "Why <script>?",
+            anchor: { kind: "text", label: "text", excerpt: "Cost fell 10%", selector: "p" },
+          },
+        },
+      ],
+    },
+  });
+  const bubbles = chrome.element("chatLog").children;
+  assert.equal(bubbles[0].id, "comment-question-a");
+  assert.match(bubbles[1].innerHTML, /href="#comment-question-a"/);
+  assert.match(bubbles[1].innerHTML, /Why &lt;script&gt;\?/);
+  assert.match(bubbles[1].innerHTML, /Cost fell 10%/);
+  assert.doesNotMatch(bubbles[1].innerHTML, /<script>/);
+});

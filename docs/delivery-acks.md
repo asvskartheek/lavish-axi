@@ -49,8 +49,8 @@ Stamps live on the chat entry (`session.chat[i]`), which already outlives the de
 what the chrome renders. `serializeChat` spreads the entry, so `initialChat` and `chat-sync` carry
 the stamps with no new wire shape.
 
-- **Delivery stamps by position, not by id.** `agentFacingPrompt` strips `prompt_id` from stored
-  prompts at queue time, so ids are gone by the time `takeFeedback` runs. A take drains every
+- **Delivery stamps by position; targeted answers by id.** This fork keeps `prompt_id` in poll output
+  so an answer can address one comment. A take drains every
   pending prompt, and `queuePrompts` runs under the same store lock, so inside `takeFeedback` the
   set "user entries with no `delivered_at`" is exactly the batch being delivered. Each take increments
   `session.delivery_seq` and writes it as `delivered_seq` on the entries it stamps.

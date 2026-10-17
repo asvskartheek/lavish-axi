@@ -28,7 +28,8 @@
     "prepack": "npm run build",
     "prepare": "npm run build",
     "test": "node --test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev": "node scripts/dev.js"
   },
   "dependencies": {
     "@tailwindcss/browser": "4.2.4",

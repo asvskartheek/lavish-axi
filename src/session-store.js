@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { readFile, realpath, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -15,6 +15,7 @@ import {
   serializeLayoutWarnings,
 } from "./layout-warnings.js";
 import { AsyncMutex } from "./async-mutex.js";
+import { persistDocumentComments } from "./document-comments.js";
 import {
   boundStoredChat,
   chatEntryForPrompt,
@@ -310,9 +311,23 @@ export class SessionStore {
     const userMessages = restoring
       ? []
       : acceptedPrompts.map((prompt) => chatEntryForPrompt(prompt, at)).filter(Boolean);
+    const documentMessages = userMessages.map((entry) => {
+      const prompt = acceptedPrompts.find((item) => item.prompt_id === entry.prompt_id);
+      return {
+        ...entry,
+        source_text: String(prompt?.target?.text || prompt?.text || ""),
+        source_selector: String(prompt?.selector || ""),
+      };
+    });
     const existingPrompts = Array.isArray(session.prompts) ? session.prompts : [];
-    const storedPrompts = restoring ? acceptedPrompts : acceptedPrompts.map(agentFacingPrompt);
+    const storedPrompts = restoring ? acceptedPrompts : acceptedPrompts.map((prompt) => ({ ...prompt }));
     session.prompts = restoring ? [...storedPrompts, ...existingPrompts] : [...existingPrompts, ...storedPrompts];
+    await this.archiveConversation(key, [...(session.chat || []), ...documentMessages]);
+    if (userMessages.length)
+      await persistDocumentComments(
+        session.file,
+        await this.readConversation(key, [...(session.chat || []), ...userMessages]),
+      );
     session.chat = [...(session.chat || []), ...userMessages];
     applyTranscriptBound(session);
     if (userMessages.length > 0) session.chat_revision = normalizeRevision(session.chat_revision) + 1;
@@ -707,7 +722,7 @@ export class SessionStore {
     });
   }
 
-  async addAgentReply(key, text, { requireOpen = false } = {}) {
+  async addAgentReply(key, text, { requireOpen = false, replyTo = "", visualHtml = "" } = {}) {
     return this.runExclusive(async () => {
       const state = await this.readState();
       const session = state.sessions[key];
@@ -718,8 +733,45 @@ export class SessionStore {
       const at = new Date().toISOString();
       // Done (docs/delivery-acks.md): the reply answers what the agent has seen. Stamped in the same
       // write as the reply, with the reply's own time, and never on an entry no poll has delivered.
-      stampDone(session.chat, at, normalizeRevision(session.closed_delivery_seq));
-      session.chat = [...(session.chat || []), { role: "agent", text: String(text || ""), at }];
+      if (visualHtml && !replyTo) throw new Error("A visual answer requires a comment id");
+      if (typeof visualHtml !== "string" || Buffer.byteLength(visualHtml) > 1_000_000)
+        throw new Error("Visual answer must be HTML under 1 MB");
+      const id = normalizePromptId(replyTo);
+      if (replyTo && !id) throw new Error("Invalid comment id");
+      const history = id ? await this.readConversation(key, session.chat) : [];
+      const question = id ? history.find((entry) => entry.role === "user" && entry.prompt_id === id) : null;
+      if (id && !question) throw new Error("Unknown comment id");
+      const replyIdentity = id
+        ? crypto
+            .createHash("sha256")
+            .update(JSON.stringify([id, String(text || ""), visualHtml]))
+            .digest("hex")
+        : "";
+      if (replyIdentity && (session.chat || []).some((entry) => entry.message_id === replyIdentity)) {
+        await persistDocumentComments(session.file, history);
+        return session;
+      }
+      if (id) {
+        const liveQuestion = (session.chat || []).find((entry) => entry.prompt_id === id);
+        if (liveQuestion?.delivered_at) liveQuestion.done_at = at;
+      } else {
+        stampDone(session.chat, at, normalizeRevision(session.closed_delivery_seq));
+      }
+      const reply = { role: "agent", text: String(text || ""), at };
+      if (visualHtml) reply.visual_html = visualHtml;
+      if (question) {
+        reply.message_id = replyIdentity;
+        reply.reply_to = id;
+        reply.question = {
+          prompt_id: id,
+          text: question.text,
+          ...(question.anchor ? { anchor: question.anchor } : {}),
+        };
+      }
+      await this.archiveConversation(key, [...(session.chat || []), reply]);
+      if (id)
+        await persistDocumentComments(session.file, await this.readConversation(key, [...(session.chat || []), reply]));
+      session.chat = [...(session.chat || []), reply];
       applyTranscriptBound(session);
       session.chat_revision = normalizeRevision(session.chat_revision) + 1;
       session.updated_at = at;
@@ -780,6 +832,43 @@ export class SessionStore {
       }
     }
     return referenced;
+  }
+
+  // Append-only history is independent of the bounded live panel. Called under store.lock.
+  async archiveConversation(key, entries) {
+    const dir = path.join(path.dirname(this.file), "conversations");
+    await mkdir(dir, { recursive: true, mode: 0o700 });
+    const file = path.join(dir, `${key}.jsonl`);
+    const existing = await this.readConversation(key, []);
+    const known = new Set(existing.map(conversationEntryKey));
+    const fresh = entries.filter((entry) => {
+      const id = conversationEntryKey(entry);
+      if (known.has(id)) return false;
+      known.add(id);
+      return true;
+    });
+    if (fresh.length)
+      await appendFile(file, fresh.map((entry) => JSON.stringify(entry)).join("\n") + "\n", { mode: 0o600 });
+  }
+
+  async readConversation(key, liveChat = []) {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(key)) throw new Error("Invalid session key");
+    let entries = [];
+    try {
+      const raw = await readFile(path.join(path.dirname(this.file), "conversations", `${key}.jsonl`), "utf8");
+      entries = raw
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    const merged = new Map();
+    for (const entry of [...entries, ...liveChat]) {
+      const id = conversationEntryKey(entry);
+      merged.set(id, { ...merged.get(id), ...entry });
+    }
+    return [...merged.values()];
   }
 
   async readState() {
@@ -859,15 +948,6 @@ function normalizePrompt(prompt) {
   const { refs, malformed } = normalizeAttachmentRefs(prompt.attachments);
   if (refs.length > 0) normalized.attachments = refs;
   return { prompt: normalized, malformed };
-}
-
-// Settlement identity is transcript-owned. The agent-facing prompt list must not carry it:
-// poll output stays the reviewer's words, and a restore replay never re-appends chat.
-function agentFacingPrompt(prompt) {
-  if (!prompt || typeof prompt !== "object" || prompt.prompt_id === undefined) return prompt;
-  const rest = { ...prompt };
-  delete rest.prompt_id;
-  return rest;
 }
 
 function layoutWarningPromptIds(prompt) {
@@ -1152,4 +1232,8 @@ function normalizeTarget(target) {
   if (target.type === LAYOUT_WARNINGS_TARGET_TYPE) return normalizeLayoutWarningsTarget(target);
   // text-range and any other/legacy target shapes pass through unchanged.
   return JSON.parse(JSON.stringify(target));
+}
+
+function conversationEntryKey(entry) {
+  return entry.prompt_id || entry.message_id || JSON.stringify([entry.role, entry.at, entry.text]);
 }

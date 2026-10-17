@@ -1988,3 +1988,23 @@ body.layout-gate-active iframe#artifact {
 .whiteboard-error[hidden] {
   display: none;
 }
+
+.reply-context {
+  border-left: 2px solid var(--accent);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  margin-bottom: var(--space-3, 12px);
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+.reply-context a {
+  color: var(--accent);
+  font-size: var(--text-xs);
+}
+.reply-question {
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+.bubble:target {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

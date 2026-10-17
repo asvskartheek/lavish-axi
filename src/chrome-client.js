@@ -906,6 +906,16 @@ function chatBubbleHtml(entry) {
   if (entry.role === "agent") {
     return (
       "<small>Agent</small>" +
+      (entry.reply_to && entry.question
+        ? '<div class="reply-context"><a href="#comment-' +
+          escapeHtml(entry.reply_to) +
+          '">Reply to your comment</a>' +
+          '<div class="reply-question">' +
+          escapeHtml(entry.question.text) +
+          "</div>" +
+          anchorHtml(entry.question.anchor) +
+          "</div>"
+        : "") +
       (typeof entry.html === "string" && entry.html
         ? '<div class="chat-md">' + entry.html + "</div>"
         : '<div class="bubble-text">' + escapeHtml(entry.text) + "</div>")
@@ -992,6 +1002,7 @@ function addChat(entry, shouldScroll = true) {
 
   const el = document.createElement("div");
   el.className = "bubble " + role;
+  if (role === "user" && isPromptIdentity(entry.prompt_id)) el.id = "comment-" + entry.prompt_id;
   el.innerHTML = chatBubbleHtml({ ...entry, role, text });
   chatLog.appendChild(el);
   if (shouldScroll) scrollElementIntoView(el);

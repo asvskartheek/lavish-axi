@@ -581,7 +581,7 @@ export function markPreReceipt(chat) {
 
 // `takeFeedback` drains every pending prompt under the store lock, so the undelivered user entries
 // at that moment are exactly the batch being handed over - no id matching needed (the stored prompts
-// lost their `prompt_id` at queue time). `seq` ties the stamps to one take so a restore can undo it.
+// retain their `prompt_id` for targeted answers). `seq` ties the stamps to one take so a restore can undo it.
 export function stampDelivered(chat, seq, at) {
   let changed = false;
   for (const entry of Array.isArray(chat) ? chat : []) {
