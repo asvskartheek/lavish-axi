@@ -26,7 +26,7 @@ test("questions and separate visual answers are retained in the actual HTML", ()
   assert.match(answered, /Try the slider/);
   assert.match(answered, /href="#cost"/);
   assert.equal((answered.match(/id="lavish-review-comments"/g) || []).length, 1);
-  assert.ok(answered.includes('<p id="cost">Cost fell 10%.</p>'));
+  assert.match(answered, /<p id="cost">Cost fell 10%\.<button/);
   const later = updateDocumentComments(answered, [{ role: "user", prompt_id: "second-q", text: "How?" }]);
   assert.match(later, /Why\?/);
   assert.match(later, /How\?/);
@@ -72,4 +72,15 @@ test("source links remain on the same element as comment references are inserted
   assert.match(answered, /href="\/two" id="lavish-source-two">Two/);
   assert.match(answered, /href="#lavish-source-two"/);
   assert.equal((answered.match(/data-lavish-comment-ref="two"/g) || []).length, 1);
+});
+
+test("comments stay tucked into small inline bubbles and open only on request", () => {
+  const html = updateDocumentComments('<body><p id="cost">Cost fell.</p></body>', [
+    { role: "user", prompt_id: "quiet", text: "Why?", anchor: { selector: "p#cost", excerpt: "Cost fell." } },
+  ]);
+  assert.match(html, /popovertarget="lavish-comment-quiet"/);
+  assert.match(html, /id="lavish-comment-quiet" popover="auto"/);
+  assert.match(html, /popovertargetaction="hide"/);
+  assert.doesNotMatch(html, />Review comment<|<h2>Review comments<\/h2>/);
+  assert.match(html, /Cost fell\.<button/);
 });

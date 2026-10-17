@@ -340,7 +340,7 @@ pnpm run typecheck      # Run TypeScript checkJs validation
 
 ### Comments and visual replies saved in the HTML (development fork)
 
-Every sent annotation is written into the artifact's actual HTML, in a **Review comments** section. A **Review comment** link beside the source passage opens its thread; the thread quotes the selected passage and links back. Questions remain visible with an Awaiting answer label until individually answered. They remain in the file when opened locally, exported, shared, or viewed without the Lavish server.
+Every sent annotation is written into the artifact's actual HTML. A small, muted comment bubble sits inline beside the source passage; the conversation stays closed until clicked. It opens a compact floating thread with soft question/answer bubbles and any visual widget inside the answer. The selected text is available under **On selected text**, and **Show passage** links back to the source. Click outside, press Escape, or use the close button to tuck it away. Unanswered questions show Awaiting answer inside their thread. Document-wide comments have a small count bubble in the corner. Everything remains in the file when opened locally, exported, shared, or viewed without the Lavish server; no comment runtime or server is needed. The interface uses the browser's native Popover API.
 
 Poll output includes each question's `prompt_id`. Answer one comment at a time:
 
